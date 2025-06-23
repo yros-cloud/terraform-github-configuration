@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.1.0](https://github.com/yros-cloud/terraform-github-configuration/compare/v1.0.0...v1.1.0) (2025-06-23)
+
+
+### Features
+
+* add repo creation ([4c353d4](https://github.com/yros-cloud/terraform-github-configuration/commit/4c353d4d4eddc5cf2b00318be8de32d8a810f898))
+
 ## 1.0.0 (2025-06-22)
 
 
