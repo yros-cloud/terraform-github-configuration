@@ -5,6 +5,14 @@ module "github_org_configuration" {
   github_owner = var.github_owner
   company_name = "yros-cloud"
 
+  repositories_to_create = [
+    {
+      name        = "example"
+      description = "Example repo"
+      visibility  = "private" # or "public" or "internal"
+      auto_init   = true # creates an initial commit with a README
+    }
+  ]
   branches        = ["main", "develop"]
   default_branch  = "main"
   protected_branches = ["main"]

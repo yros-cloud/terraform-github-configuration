@@ -4,18 +4,29 @@ provider "github" {
   owner = var.github_owner         # GitHub organization name
 }
 
-# Fetch all repositories from the GitHub organization
+# Optional: Create GitHub repositories if a list is provided
+resource "github_repository" "repos" {
+  for_each = { for r in var.repositories_to_create : r.name => r }
+
+  name        = each.value.name
+  description = each.value.description
+  visibility  = each.value.visibility
+}
+
+
+# Fetch all repositories from the GitHub organization (only if not creating new ones)
 data "github_repositories" "all" {
+  count = length(var.repositories_to_create) > 0 ? 0 : 1
   query = "org:${var.github_owner}"
 }
 
 # Dynamic repository selection logic
 locals {
   selected_repositories = (
-    var.repository_selection_mode == "all" ? data.github_repositories.all.names :
-    var.repository_selection_mode == "list" ? var.repositories :
-    var.repository_selection_mode == "filter" ? [
-      for name in data.github_repositories.all.names : name
+    var.repository_selection_mode == "all"     ? (length(var.repositories_to_create) > 0 ? keys(github_repository.repos) : data.github_repositories.all[0].names) :
+    var.repository_selection_mode == "list"    ? var.repositories :
+    var.repository_selection_mode == "filter"  ? [
+      for name in (length(var.repositories_to_create) > 0 ? keys(github_repository.repos) : data.github_repositories.all[0].names) : name
       if contains(name, var.repository_filter_keyword)
     ] : []
   )
@@ -59,7 +70,6 @@ locals {
     t.slug if t.permissions.bypass
   ]
 }
-
 
 # Create GitHub teams based on the input structure
 resource "github_team" "teams" {
@@ -160,13 +170,11 @@ resource "github_branch_protection" "protected" {
 
 # OUTPUTS
 
-# Output: list of repository names discovered in the organization
 output "repository_names" {
   description = "List of all repository names found"
   value       = local.selected_repositories
 }
 
-# Output: all created GitHub teams and their metadata
 output "github_teams" {
   description = "All created GitHub teams with name and ID"
   value = {
@@ -181,7 +189,6 @@ output "github_teams" {
   }
 }
 
-# Output: all branches created per repository
 output "created_branches" {
   description = "Branches created per repository"
   value = {
@@ -192,7 +199,6 @@ output "created_branches" {
   }
 }
 
-# Output: default branch set for each repository
 output "default_branches_set" {
   description = "Default branch configured per repository"
   value = {
@@ -203,7 +209,6 @@ output "default_branches_set" {
   }
 }
 
-# Output: protection rules configured for each branch
 output "branch_protection_rules" {
   description = "Branch protection applied per repository"
   value = {
@@ -215,7 +220,6 @@ output "branch_protection_rules" {
   }
 }
 
-# Output: permissions granted to each team per repository
 output "team_repo_permissions" {
   description = "Team permissions assigned to each repository"
   value = try({
