@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0](https://github.com/yros-cloud/terraform-github-configuration/compare/v1.2.0...v1.3.0) (2025-06-23)
+
+
+### Features
+
+* fix github module ([7caa37f](https://github.com/yros-cloud/terraform-github-configuration/commit/7caa37f3d81a42c37655298d56e86364ab133d79))
+
 ## [1.2.0](https://github.com/yros-cloud/terraform-github-configuration/compare/v1.1.0...v1.2.0) (2025-06-23)
 
 
