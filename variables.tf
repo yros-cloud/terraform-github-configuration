@@ -88,3 +88,7 @@ variable "protected_branches" {
   description = "Branches to protect"
 }
 
+variable "enable_advanced_protection" {
+  type    = bool
+  default = false
+}

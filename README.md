@@ -25,7 +25,8 @@ This module automates the creation and configuration of GitHub repositories, tea
 | `branches`                | List of branches to create per repository                                                           | `list(string)`                                                                                    | ✅ Yes   |
 | `default_branch`          | Name of the default branch to set                                                                  | `string`                                                                                          | ✅ Yes   |
 | `protected_branches`      | Branch names that should be protected                                                               | `list(string)`                                                                                    | ✅ Yes   |
-| `teams_structure`         | Map of teams with structure `{ slug, description, role_default, permissions: {review, push, bypass} }` | `map(object)`                                                                                     | ✅ Yes   |
+| `teams_structure`         | Map of teams with structure `{ slug, description, role_default, permissions: {review, push, bypass} }` | `map(object)`    
+| `enable_advanced_protection` | Whether to enable strict branch protection even for private repos Github Pro                              | `bool`                                                                                            | ❌ No    |                                                                                 | ✅ Yes   |
 
 ### Example `repositories_to_create`:
 ```hcl

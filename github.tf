@@ -1,34 +1,57 @@
-# GitHub provider configuration
+# ─── GitHub Provider ────────────────────────────────────────────────────────────
 provider "github" {
   token = var.github_token         # GitHub token with proper scopes
   owner = var.github_owner         # GitHub organization name
 }
 
-# Optional: Create GitHub repositories if a list is provided
+# ─── Optional Repository Creation ───────────────────────────────────────────────
 resource "github_repository" "repos" {
   for_each = { for r in var.repositories_to_create : r.name => r }
 
   name        = each.value.name
   description = each.value.description
   visibility  = each.value.visibility
+  auto_init   = true
 }
 
-
-# Fetch all repositories from the GitHub organization (only if not creating new ones)
+# ─── Data Source: Existing GitHub Repositories ──────────────────────────────────
 data "github_repositories" "all" {
   count = length(var.repositories_to_create) > 0 ? 0 : 1
   query = "org:${var.github_owner}"
 }
 
-# Dynamic repository selection logic
+# this local is used to determine the visibility of repositories
+# based on the repositories created by this module and the existing ones
+locals {
+  repo_visibility_map = merge(
+    {
+      for repo in local.selected_repositories :
+      repo => "private"
+    },
+    {
+      for repo, conf in github_repository.repos :
+      repo => conf.visibility
+    }
+  )
+}
+
+
+# ─── Dynamic Repository Selection Logic ─────────────────────────────────────────
 locals {
   selected_repositories = (
-    var.repository_selection_mode == "all"     ? (length(var.repositories_to_create) > 0 ? keys(github_repository.repos) : data.github_repositories.all[0].names) :
-    var.repository_selection_mode == "list"    ? var.repositories :
-    var.repository_selection_mode == "filter"  ? [
-      for name in (length(var.repositories_to_create) > 0 ? keys(github_repository.repos) : data.github_repositories.all[0].names) : name
-      if contains(name, var.repository_filter_keyword)
-    ] : []
+    var.repository_selection_mode == "all" ? (
+      length(var.repositories_to_create) > 0
+        ? keys(github_repository.repos)
+        : data.github_repositories.all[0].names
+    ) :
+    var.repository_selection_mode == "list" ? distinct(concat(
+      var.repositories,
+      [for r in github_repository.repos : r.name]
+    )) :
+    var.repository_selection_mode == "filter" ? distinct(concat(
+      [for name in data.github_repositories.all[0].names : name if contains(name, var.repository_filter_keyword)],
+      [for r in github_repository.repos : r.name if contains(r.name, var.repository_filter_keyword)]
+    )) : []
   )
 
   repo_map = { for repo in local.selected_repositories : repo => repo }
@@ -69,18 +92,23 @@ locals {
     for t in values(var.teams_structure) :
     t.slug if t.permissions.bypass
   ]
+
+  slug_to_team_key = {
+    for team_key, team_data in var.teams_structure :
+    team_data.slug => team_key
+  }
 }
 
-# Create GitHub teams based on the input structure
+# ─── GitHub Teams ───────────────────────────────────────────────────────────────
 resource "github_team" "teams" {
   for_each = var.teams_structure
 
-  name        = "${var.company_name}-${each.value.slug}" # Prefixed team name
+  name        = "${var.company_name}-${each.value.slug}"
   description = each.value.description
-  privacy     = "closed" # Team is private (not visible to non-members)
+  privacy     = "closed"
 }
 
-# Grant each team access to every repository based on role_default
+# ─── Team Access to Repositories ────────────────────────────────────────────────
 resource "github_team_repository" "team_repo_access" {
   for_each = {
     for pair in setproduct(keys(var.teams_structure), local.selected_repositories) :
@@ -97,34 +125,36 @@ resource "github_team_repository" "team_repo_access" {
   permission = each.value.permission
 }
 
-# Create branches (e.g., main, staging, develop) per repository
+# ─── Branch Creation ────────────────────────────────────────────────────────────
 resource "github_branch" "branches" {
   for_each   = local.branch_map
   repository = each.value.repo
   branch     = each.value.branch
+
+  lifecycle {
+    prevent_destroy = true # Prevents accidental deletion of important branches
+  }
 }
 
-# Set default branch per repository (e.g., "main" or "develop")
+# ─── Default Branch ─────────────────────────────────────────────────────────────
 resource "github_branch_default" "default" {
   for_each   = local.repo_map
   repository = each.value
   branch     = var.default_branch
 
-  # Ensure branches are created before setting default
   depends_on = [github_branch.branches]
 }
 
-# Map slugs to team keys to resolve references later
-locals {
-  slug_to_team_key = {
-    for team_key, team_data in var.teams_structure :
-    team_data.slug => team_key
-  }
-}
-
-# Apply branch protection rules for defined protected branches
+# ─── Branch Protection ──────────────────────────────────────────────────────────
 resource "github_branch_protection" "protected" {
-  for_each = local.protected_branch_map
+  for_each = {
+    for k, v in local.protected_branch_map :
+    k => v
+    if (
+      var.enable_advanced_protection ||
+      try(local.repo_visibility_map[v.repo], "private") == "public"
+    )
+  }
 
   repository_id       = each.value.repo
   pattern             = each.value.branch
@@ -132,33 +162,28 @@ resource "github_branch_protection" "protected" {
   allows_deletions    = true
   allows_force_pushes = false
 
-  # Pull request review rules
   required_pull_request_reviews {
-    dismiss_stale_reviews  = true
-    restrict_dismissals    = true
+    dismiss_stale_reviews = true
+    restrict_dismissals   = var.enable_advanced_protection
 
-    # Teams allowed to dismiss reviews
-    dismissal_restrictions = [
+    dismissal_restrictions = var.enable_advanced_protection ? [
       for slug in local.reviewers :
       github_team.teams[local.slug_to_team_key[slug]].node_id
-    ]
+    ] : null
   }
 
-  # Teams allowed to push to the protected branch
   restrict_pushes {
-    push_allowances = [
+    push_allowances = var.enable_advanced_protection ? [
       for slug in local.pushers :
       github_team.teams[local.slug_to_team_key[slug]].node_id
-    ]
+    ] : null
   }
 
-  # Teams allowed to bypass branch protection rules
-  force_push_bypassers = [
+  force_push_bypassers = var.enable_advanced_protection ? [
     for slug in local.bypassers :
     github_team.teams[local.slug_to_team_key[slug]].node_id
-  ]
+  ] : null
 
-  # Prevent Terraform from recreating resource on minor permission changes
   lifecycle {
     ignore_changes = [
       force_push_bypassers,
@@ -168,15 +193,16 @@ resource "github_branch_protection" "protected" {
   }
 }
 
-# OUTPUTS
 
+
+# ─── Outputs ────────────────────────────────────────────────────────────────────
 output "repository_names" {
-  description = "List of all repository names found"
+  description = "List of all repository names handled by this module"
   value       = local.selected_repositories
 }
 
 output "github_teams" {
-  description = "All created GitHub teams with name and ID"
+  description = "All created GitHub teams with their details"
   value = {
     for k, team in github_team.teams : k => {
       id           = team.id
