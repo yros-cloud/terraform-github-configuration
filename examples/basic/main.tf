@@ -10,13 +10,12 @@ module "github_org_configuration" {
       name        = "example"
       description = "Example repo"
       visibility  = "private" # or "public" or "internal"
-      auto_init   = true # creates an initial commit with a README
     }
   ]
   branches        = ["main", "develop"]
   default_branch  = "main"
   protected_branches = ["main"]
-
+  enable_advanced_protection = false # Set to true to enable advanced branch protection rules (Github Pro only or Public repositories)
   repository_selection_mode  = "all" # or "list" or "filter"
   repositories               = []    # optional if using "all"
   repository_filter_keyword  = ""    # optional if using "filter"

@@ -28,24 +28,6 @@ This module automates the creation and configuration of GitHub repositories, tea
 | `teams_structure`         | Map of teams with structure `{ slug, description, role_default, permissions: {review, push, bypass} }` | `map(object)`    
 | `enable_advanced_protection` | Whether to enable strict branch protection even for private repos Github Pro                              | `bool`                                                                                            | ❌ No    |                                                                                 | ✅ Yes   |
 
-### Example `repositories_to_create`:
-```hcl
-repositories_to_create = [
-  {
-    name        = "infra-core"
-    description = "Infrastructure core repo"
-    visibility  = "private"
-    auto_init   = true
-  },
-  {
-    name        = "app-backend"
-    description = "Backend application"
-    visibility  = "internal"
-    auto_init   = false
-  }
-]
-```
-
 ---
 
 ## 📤 Outputs
@@ -106,20 +88,18 @@ module "github_setup" {
   company_name  = "tecnologia-pnt"
 
   repository_selection_mode = "list"
-  repositories = ["app-backend", "app-frontend"]
+  repositories = ["php-app", "python-node"]
 
   repositories_to_create = [
     {
-      name        = "app-backend"
-      description = "Backend repo"
+      name        = "node-backend"
+      description = "Node app repo"
       visibility  = "private"
-      auto_init   = true
     },
     {
-      name        = "app-frontend"
-      description = "Frontend repo"
+      name        = "ruby-frontend"
+      description = "Ruby app repo"
       visibility  = "private"
-      auto_init   = true
     }
   ]
 
