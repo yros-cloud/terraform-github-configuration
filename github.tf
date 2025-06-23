@@ -35,7 +35,6 @@ locals {
   )
 }
 
-
 # ─── Dynamic Repository Selection Logic ─────────────────────────────────────────
 locals {
   selected_repositories = (
